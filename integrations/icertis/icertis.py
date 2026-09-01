@@ -20,6 +20,8 @@ import requests
 from dotenv import load_dotenv
 from oaaclient.client import OAAClient, OAAClientError
 from oaaclient.templates import CustomApplication, OAAPermission
+from requests.adapters import HTTPAdapter
+from urllib3.util.retry import Retry
 
 LOGGER = logging.getLogger(__name__)
 
@@ -279,8 +281,26 @@ def _merge_query_payload(payload: Any) -> list[dict[str, Any]]:
     return []
 
 
+def _build_session() -> requests.Session:
+    session = requests.Session()
+    retry = Retry(
+        total=3,
+        connect=3,
+        read=3,
+        status=3,
+        backoff_factor=1.5,
+        status_forcelist=(429, 500, 502, 503, 504),
+        allowed_methods=None,
+        raise_on_status=False,
+    )
+    adapter = HTTPAdapter(max_retries=retry)
+    session.mount("http://", adapter)
+    session.mount("https://", adapter)
+    return session
+
+
 def _request_json(session: requests.Session, url: str, timeout: int, token: Optional[str], api_key: Optional[str], method: str = "GET") -> Any:
-    headers = {"Accept": "application/json", "User-Agent": "veza-icertis-oaa/1.0"}
+    headers = {"Accept": "application/scim+json, application/json", "User-Agent": "veza-icertis-oaa/1.0"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
     elif api_key:
@@ -313,7 +333,7 @@ def _get_oauth_token(cfg: dict[str, Any]) -> str:
     params = cfg.get("oauth_request_parameters") or {}
     for key, value in params.items():
         payload[key] = value
-    response = requests.post(cfg["token_url"], data=payload, timeout=30)
+    response = requests.post(cfg["token_url"], data=payload, timeout=60)
     if response.status_code >= 400:
         raise RuntimeError(f"OAuth token fetch failed: HTTP {response.status_code} {response.text[:300]}")
     payload_json = response.json()
@@ -333,7 +353,7 @@ def fetch_i_certis_data(cfg: dict[str, Any]) -> tuple[list[dict[str, Any]], list
         raise RuntimeError("ICERTIS_BASE_URL or exact Icertis endpoint URLs are required for the SaaS connector")
 
     token = _get_oauth_token(cfg) if cfg.get("client_id") or cfg.get("api_token") else (cfg.get("api_key") or "")
-    session = requests.Session()
+    session = _build_session()
 
     if users_url:
         user_url = users_url
@@ -563,7 +583,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--users-path", default="/api/v1/users", help="Endpoint path for user queries")
     parser.add_argument("--roles-path", default="/api/v1/roles", help="Endpoint path for role queries")
     parser.add_argument("--permissions-path", default="/api/v1/permissions", help="Endpoint path for permission queries")
-    parser.add_argument("--timeout", type=int, default=30, help="HTTP timeout in seconds")
+    parser.add_argument("--timeout", type=int, default=120, help="HTTP timeout in seconds")
     return parser.parse_args()
 
 
