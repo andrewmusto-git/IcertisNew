@@ -139,6 +139,30 @@ check_existing_env() {
   fi
 }
 
+derive_icertis_urls() {
+  local base_url="${1:-}"
+  base_url="${base_url%/}"
+
+  if [[ -z "$base_url" ]]; then
+    ICERTIS_USERS_URL_VALUE=""
+    ICERTIS_GROUPS_URL_VALUE=""
+    ICERTIS_ORG_UNITS_URL_VALUE=""
+    return 0
+  fi
+
+  local scheme="${base_url%%://*}"
+  local host="${base_url#*://}"
+  host="${host%%/*}"
+
+  local tenant="${host}"
+  tenant="${tenant%-api.icertis.com}"
+  tenant="${tenant%-business-api.icertis.com}"
+
+  ICERTIS_USERS_URL_VALUE="${scheme}://${tenant}-api.icertis.com/api/Users"
+  ICERTIS_GROUPS_URL_VALUE="${scheme}://${tenant}-api.icertis.com/api/Groups"
+  ICERTIS_ORG_UNITS_URL_VALUE="${scheme}://${tenant}-business-api.icertis.com/api/v1/organizationunits"
+}
+
 create_env_file() {
   local env_path="$1"
   if [[ -f "$env_path" && "$OVERWRITE_ENV" -ne 1 ]]; then
@@ -334,29 +358,25 @@ EOF
     info "Collecting environment values..."
     VEZA_URL_VALUE="$(prompt_or_default "Veza URL" "https://your-veza-instance.example.com")"
     VEZA_API_KEY_VALUE="$(prompt_or_default "Veza API key" "your_veza_api_key_here")"
-    ICERTIS_BASE_URL_VALUE="$(prompt_or_default "Icertis Base URL" "https://your-icertis-base-url.example.com")"
-    ICERTIS_USERS_URL_VALUE="$(prompt_or_default "Icertis Users URL" "https://tenant-api.icertis.com/api/Users")"
-    ICERTIS_GROUPS_URL_VALUE="$(prompt_or_default "Icertis Groups URL" "https://tenant-api.icertis.com/api/Groups")"
-    ICERTIS_ORG_UNITS_URL_VALUE="$(prompt_or_default "Icertis Org Units URL" "https://tenant-business-api.icertis.com/api/v1/organizationunits")"
-    ICERTIS_TOKEN_URL_VALUE="$(prompt_or_default "Icertis Token URL" "https://login.example.com/oauth2/v2.0/token")"
+    ICERTIS_BASE_URL_VALUE="$(prompt_or_default "Icertis Base URL" "https://westrock")"
+    ICERTIS_TOKEN_URL_VALUE="$(prompt_or_default "Icertis Token URL" "https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/token")"
     ICERTIS_GRANT_TYPE_VALUE="$(prompt_or_default "OAuth Grant Type" "client_credentials")"
     ICERTIS_CLIENT_ID_VALUE="$(prompt_or_default "Client ID" "your_client_id_here")"
     ICERTIS_CLIENT_SECRET_VALUE="$(prompt_secret "Client Secret" "your_client_secret_here")"
     ICERTIS_OAUTH_KEY_VALUE="$(prompt_or_default "OAuth Request Parameter Key" "scope")"
     ICERTIS_OAUTH_PARAM_VALUE="$(prompt_or_default "OAuth Request Parameter Value" "api://your-app-id/.default")"
+    derive_icertis_urls "$ICERTIS_BASE_URL_VALUE"
   else
     VEZA_URL_VALUE="${VEZA_URL:-https://your-veza-instance.example.com}"
     VEZA_API_KEY_VALUE="${VEZA_API_KEY:-your_veza_api_key_here}"
-    ICERTIS_BASE_URL_VALUE="${ICERTIS_BASE_URL:-https://your-icertis-base-url.example.com}"
-    ICERTIS_USERS_URL_VALUE="${ICERTIS_USERS_URL:-https://tenant-api.icertis.com/api/Users}"
-    ICERTIS_GROUPS_URL_VALUE="${ICERTIS_GROUPS_URL:-https://tenant-api.icertis.com/api/Groups}"
-    ICERTIS_ORG_UNITS_URL_VALUE="${ICERTIS_ORG_UNITS_URL:-https://tenant-business-api.icertis.com/api/v1/organizationunits}"
-    ICERTIS_TOKEN_URL_VALUE="${ICERTIS_TOKEN_URL:-https://login.example.com/oauth2/v2.0/token}"
+    ICERTIS_BASE_URL_VALUE="${ICERTIS_BASE_URL:-https://westrock}"
+    ICERTIS_TOKEN_URL_VALUE="${ICERTIS_TOKEN_URL:-https://login.microsoftonline.com/<tenant-id>/oauth2/v2.0/token}"
     ICERTIS_GRANT_TYPE_VALUE="${ICERTIS_GRANT_TYPE:-client_credentials}"
     ICERTIS_CLIENT_ID_VALUE="${ICERTIS_CLIENT_ID:-your_client_id_here}"
     ICERTIS_CLIENT_SECRET_VALUE="${ICERTIS_CLIENT_SECRET:-your_client_secret_here}"
     ICERTIS_OAUTH_KEY_VALUE="${ICERTIS_OAUTH_KEY:-scope}"
     ICERTIS_OAUTH_PARAM_VALUE="${ICERTIS_OAUTH_VALUE:-api://your-app-id/.default}"
+    derive_icertis_urls "$ICERTIS_BASE_URL_VALUE"
   fi
 
   install_connector

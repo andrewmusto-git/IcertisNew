@@ -155,6 +155,25 @@ def _apply_json_config(cfg: dict[str, Any], path: Optional[str]) -> dict[str, An
     return cfg
 
 
+def _derive_icertis_urls(base_url: str) -> dict[str, str]:
+    cleaned = (base_url or "").strip().rstrip("/")
+    if not cleaned:
+        return {"users_url": "", "groups_url": "", "org_units_url": ""}
+
+    scheme = "https"
+    host = cleaned
+    if cleaned.startswith("http://") or cleaned.startswith("https://"):
+        scheme = cleaned.split("://", 1)[0]
+        host = cleaned.split("://", 1)[1].split("/", 1)[0]
+
+    tenant = host.replace("-api.icertis.com", "").replace("-business-api.icertis.com", "")
+    return {
+        "users_url": f"{scheme}://{tenant}-api.icertis.com/api/Users",
+        "groups_url": f"{scheme}://{tenant}-api.icertis.com/api/Groups",
+        "org_units_url": f"{scheme}://{tenant}-business-api.icertis.com/api/v1/organizationunits",
+    }
+
+
 def _read_config(args: argparse.Namespace) -> dict[str, Any]:
     _load_env_file(args.env_file)
     cfg: dict[str, Any] = {
@@ -178,6 +197,13 @@ def _read_config(args: argparse.Namespace) -> dict[str, Any]:
         "oauth_request_parameters": _parse_oauth_request_params(os.getenv("ICERTIS_OAUTH_REQUEST_PARAMETERS")),
     }
     cfg = _apply_json_config(cfg, args.config_json)
+    derived_urls = _derive_icertis_urls(cfg.get("base_url") or "")
+    if not cfg.get("users_url"):
+        cfg["users_url"] = derived_urls["users_url"]
+    if not cfg.get("groups_url"):
+        cfg["groups_url"] = derived_urls["groups_url"]
+    if not cfg.get("org_units_url"):
+        cfg["org_units_url"] = derived_urls["org_units_url"]
     for item in args.oauth_request_param:
         if "=" not in item:
             continue
