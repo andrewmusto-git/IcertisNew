@@ -1,0 +1,5 @@
+.env
+#integrations/*
+#venv/
+#.DS_Store
+Samples
