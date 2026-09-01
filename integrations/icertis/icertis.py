@@ -223,6 +223,20 @@ def _prompt_for_missing_values(cfg: dict[str, Any]) -> dict[str, Any]:
     return cfg
 
 
+def _check_existing_env_file(env_file: str) -> bool:
+    if not env_file or not os.path.exists(env_file):
+        return False
+
+    while True:
+        choice = input(f"Existing .env file found at {env_file}. Use it? [Y/n]: ")
+        answer = (choice or "Y").strip().lower()
+        if answer in {"y", "yes", ""}:
+            return True
+        if answer in {"n", "no"}:
+            return False
+        print("Please answer yes or no.")
+
+
 def _merge_query_payload(payload: Any) -> list[dict[str, Any]]:
     if payload is None:
         return []
@@ -531,6 +545,12 @@ def main() -> int:
     args = parse_args()
     _setup_logging(args.log_level)
     LOGGER.info("Starting Icertis SaaS connector")
+
+    if os.path.exists(args.env_file) and not args.dry_run:
+        if not _check_existing_env_file(args.env_file):
+            LOGGER.info("User chose to create a new environment file; continuing with runtime prompts.")
+        else:
+            LOGGER.info("User chose to reuse the existing .env file.")
 
     cfg = _read_config(args)
     if args.prompt_config:
