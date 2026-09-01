@@ -1,12 +1,19 @@
 #!/usr/bin/env bash
-set -uo pipefail
+set -o pipefail
+set -u
 
-SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-INSTALL_DIR="/opt/VEZA/icertis-veza"
-REPO_URL="https://github.com/andrewmusto-git/IcertisNew.git"
-BRANCH="main"
+SCRIPT_NAME="icertis"
+SLUG="icertis"
+INTEGRATION_SUBDIR="integrations/${SLUG}"
+DEFAULT_INSTALL_DIR="/opt/VEZA/${SLUG}-veza"
+DEFAULT_BRANCH="main"
+DEFAULT_REPO_URL="https://github.com/andrewmusto-git/IcertisNew.git"
+
 NON_INTERACTIVE=0
 OVERWRITE_ENV=0
+INSTALL_DIR="${DEFAULT_INSTALL_DIR}"
+REPO_URL="${REPO_URL:-${DEFAULT_REPO_URL}}"
+BRANCH="${DEFAULT_BRANCH}"
 
 usage() {
   cat <<'EOF'
@@ -183,6 +190,53 @@ ensure_install_layout() {
   done
 }
 
+# Resolve source files using three-tier lookup (Optivision pattern):
+#   1. Installer lives next to the .py file (local dev / repo checkout)
+#   2. Installer is two levels up from repo root (integrations/<slug>/)
+#   3. Fallback: clone from $REPO_URL into a tmp dir
+copy_integration_files() {
+  local scripts_dir="$1"
+  local tmp_dir=""
+
+  local self_dir
+  self_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+  local repo_root
+  repo_root="$(cd "${self_dir}/../.." && pwd)"
+
+  # Tier 1: script lives next to integration files (local dev)
+  if [[ -f "${self_dir}/${SCRIPT_NAME}.py" && -f "${self_dir}/requirements.txt" ]]; then
+    cp -f "${self_dir}/${SCRIPT_NAME}.py"        "${scripts_dir}/"
+    cp -f "${self_dir}/requirements.txt"         "${scripts_dir}/"
+    cp -f "${self_dir}/.env.example"             "${scripts_dir}/" 2>/dev/null || true
+    cp -f "${self_dir}/preflight_icertis.sh"     "${INSTALL_DIR}/" 2>/dev/null || true
+    cp -f "${self_dir}/install_icertis.sh"       "${INSTALL_DIR}/" 2>/dev/null || true
+    return 0
+  fi
+
+  # Tier 2: repo root checkout — integrations/<slug>/ relative to repo root
+  if [[ -f "${repo_root}/${INTEGRATION_SUBDIR}/${SCRIPT_NAME}.py" && -f "${repo_root}/${INTEGRATION_SUBDIR}/requirements.txt" ]]; then
+    cp -f "${repo_root}/${INTEGRATION_SUBDIR}/${SCRIPT_NAME}.py"        "${scripts_dir}/"
+    cp -f "${repo_root}/${INTEGRATION_SUBDIR}/requirements.txt"         "${scripts_dir}/"
+    cp -f "${repo_root}/${INTEGRATION_SUBDIR}/.env.example"             "${scripts_dir}/" 2>/dev/null || true
+    cp -f "${repo_root}/${INTEGRATION_SUBDIR}/preflight_icertis.sh"     "${INSTALL_DIR}/" 2>/dev/null || true
+    cp -f "${repo_root}/${INTEGRATION_SUBDIR}/install_icertis.sh"       "${INSTALL_DIR}/" 2>/dev/null || true
+    return 0
+  fi
+
+  # Tier 3: fallback — clone from GitHub
+  info "Source files not found locally; cloning from ${REPO_URL}"
+  tmp_dir="$(mktemp -d)"
+  GIT_TERMINAL_PROMPT=0 git clone --branch "${BRANCH}" --depth 1 --single-branch "${REPO_URL}" "${tmp_dir}" >/dev/null 2>&1 \
+    || { rm -rf "${tmp_dir}"; fail "Unable to clone repository from ${REPO_URL}"; }
+
+  cp -f "${tmp_dir}/${INTEGRATION_SUBDIR}/${SCRIPT_NAME}.py"        "${scripts_dir}/"     || { rm -rf "${tmp_dir}"; fail "Missing ${SCRIPT_NAME}.py in repo"; }
+  cp -f "${tmp_dir}/${INTEGRATION_SUBDIR}/requirements.txt"         "${scripts_dir}/"     || { rm -rf "${tmp_dir}"; fail "Missing requirements.txt in repo"; }
+  cp -f "${tmp_dir}/${INTEGRATION_SUBDIR}/.env.example"             "${scripts_dir}/"     2>/dev/null || true
+  cp -f "${tmp_dir}/${INTEGRATION_SUBDIR}/preflight_icertis.sh"     "${INSTALL_DIR}/"    2>/dev/null || true
+  cp -f "${tmp_dir}/${INTEGRATION_SUBDIR}/install_icertis.sh"       "${INSTALL_DIR}/"    2>/dev/null || true
+  rm -rf "${tmp_dir}"
+}
+
 install_connector() {
   local scripts_dir="$INSTALL_DIR/scripts"
   local config_dir="$INSTALL_DIR/config"
@@ -191,22 +245,23 @@ install_connector() {
   ensure_install_layout
 
   show_milestone 2 7 "Creating the /opt/VEZA folder structure"
+  pass "Directory layout ready under ${INSTALL_DIR}"
 
-  show_milestone 3 7 "Creating Python virtual environment"
+  show_milestone 3 7 "Copying integration files into the install directory"
+  copy_integration_files "${scripts_dir}"
+  chmod +x "${INSTALL_DIR}/preflight_icertis.sh" 2>/dev/null || true
+  chmod +x "${INSTALL_DIR}/install_icertis.sh"   2>/dev/null || true
+  printf '%s\n' "Icertis connector support files" > "${lib_dir}/README.txt"
+  pass "Integration files staged to ${scripts_dir}"
+
+  show_milestone 4 7 "Creating Python virtual environment"
   python3 -m venv "$scripts_dir/venv"
-
-  show_milestone 4 7 "Copying integration files into the install directory"
-  cp "$SCRIPT_DIR/icertis.py" "$scripts_dir/icertis.py"
-  cp "$SCRIPT_DIR/requirements.txt" "$scripts_dir/requirements.txt"
-  cp "$SCRIPT_DIR/.env.example" "$scripts_dir/.env.example"
-  cp "$SCRIPT_DIR/preflight_icertis.sh" "$INSTALL_DIR/preflight_icertis.sh"
-  cp "$SCRIPT_DIR/install_icertis.sh" "$INSTALL_DIR/install_icertis.sh"
-  chmod +x "$INSTALL_DIR/preflight_icertis.sh" "$INSTALL_DIR/install_icertis.sh"
-  printf '%s\n' "Icertis connector support files" > "$lib_dir/README.txt"
+  pass "Virtual environment created"
 
   show_milestone 5 7 "Installing connector dependencies"
   "$scripts_dir/venv/bin/pip" install --upgrade pip >/dev/null 2>&1
   "$scripts_dir/venv/bin/pip" install -r "$scripts_dir/requirements.txt" >/dev/null 2>&1
+  pass "Dependencies installed"
 
   show_milestone 6 7 "Writing environment configuration"
   create_env_file "$config_dir/.env"
@@ -225,24 +280,6 @@ install_connector() {
 
 main() {
   ensure_prereqs
-
-  if [[ -n "$REPO_URL" ]]; then
-    info "Repository URL provided; staging connector files from $REPO_URL"
-    tmp_dir="$(mktemp -d)"
-    GIT_TERMINAL_PROMPT=0 git clone --branch "$BRANCH" --depth 1 --single-branch "$REPO_URL" "$tmp_dir" >/dev/null 2>&1 || {
-      fail "git clone failed"
-      exit 1
-    }
-    mkdir -p "$INSTALL_DIR/scripts" "$INSTALL_DIR/config" "$INSTALL_DIR/lib"
-    cp -f "$tmp_dir/integrations/icertis"/*.py "$INSTALL_DIR/scripts/" 2>/dev/null || true
-    cp -f "$tmp_dir/integrations/icertis/requirements.txt" "$INSTALL_DIR/scripts/requirements.txt" 2>/dev/null || true
-    cp -f "$tmp_dir/integrations/icertis/.env.example" "$INSTALL_DIR/scripts/.env.example" 2>/dev/null || true
-    cp -f "$tmp_dir/integrations/icertis/preflight_icertis.sh" "$INSTALL_DIR/preflight_icertis.sh" 2>/dev/null || true
-    cp -f "$tmp_dir/integrations/icertis/install_icertis.sh" "$INSTALL_DIR/install_icertis.sh" 2>/dev/null || true
-    chmod +x "$INSTALL_DIR/preflight_icertis.sh" "$INSTALL_DIR/install_icertis.sh"
-    printf '%s\n' "Icertis connector support files" > "$INSTALL_DIR/lib/README.txt"
-    rm -rf "$tmp_dir"
-  fi
 
   if [[ -f "$INSTALL_DIR/config/.env" && "$OVERWRITE_ENV" -ne 1 ]]; then
     if check_existing_env "$INSTALL_DIR/config/.env"; then
