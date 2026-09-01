@@ -14,7 +14,7 @@ import os
 import sys
 from datetime import datetime
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Iterable, Optional
 
 import requests
 from dotenv import load_dotenv
@@ -101,12 +101,12 @@ def _parse_oauth_request_params(raw: Any) -> dict[str, str]:
     return {}
 
 
-def _load_env_file(path: str | None) -> None:
+def _load_env_file(path: Optional[str]) -> None:
     if path and os.path.exists(path):
         load_dotenv(path)
 
 
-def _apply_json_config(cfg: dict[str, Any], path: str | None) -> dict[str, Any]:
+def _apply_json_config(cfg: dict[str, Any], path: Optional[str]) -> dict[str, Any]:
     if not path or not os.path.exists(path):
         return cfg
     try:
@@ -253,7 +253,7 @@ def _merge_query_payload(payload: Any) -> list[dict[str, Any]]:
     return []
 
 
-def _request_json(session: requests.Session, url: str, timeout: int, token: str | None, api_key: str | None, method: str = "GET") -> Any:
+def _request_json(session: requests.Session, url: str, timeout: int, token: Optional[str], api_key: Optional[str], method: str = "GET") -> Any:
     headers = {"Accept": "application/json", "User-Agent": "veza-icertis-oaa/1.0"}
     if token:
         headers["Authorization"] = f"Bearer {token}"
@@ -465,7 +465,7 @@ def build_oaa_payload(users: Iterable[dict[str, Any]], roles: Iterable[dict[str,
     return app
 
 
-def _dump_payload(app: CustomApplication, save_json: bool) -> str | None:
+def _dump_payload(app: CustomApplication, save_json: bool) -> Optional[str]:
     if not save_json:
         return None
     payload_path = Path(__file__).resolve().with_name("icertis_payload.json")
