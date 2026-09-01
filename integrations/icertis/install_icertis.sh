@@ -175,14 +175,15 @@ main() {
   ensure_prereqs
 
   if [[ -n "$REPO_URL" ]]; then
-    info "Repository URL provided; copying connector files from $REPO_URL"
+    info "Repository URL provided; staging connector files from $REPO_URL"
     tmp_dir="$(mktemp -d)"
     GIT_TERMINAL_PROMPT=0 git clone --branch "$BRANCH" --depth 1 --single-branch "$REPO_URL" "$tmp_dir" >/dev/null 2>&1 || {
       fail "git clone failed"
       exit 1
     }
-    cp -f "$tmp_dir/integrations/icertis"/*.py "$SCRIPT_DIR/" 2>/dev/null || true
-    cp -f "$tmp_dir/integrations/icertis/requirements.txt" "$SCRIPT_DIR/requirements.txt" 2>/dev/null || true
+    mkdir -p "$INSTALL_DIR/scripts"
+    cp -f "$tmp_dir/integrations/icertis"/*.py "$INSTALL_DIR/scripts/" 2>/dev/null || true
+    cp -f "$tmp_dir/integrations/icertis/requirements.txt" "$INSTALL_DIR/scripts/requirements.txt" 2>/dev/null || true
     rm -rf "$tmp_dir"
   fi
 
