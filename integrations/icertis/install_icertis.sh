@@ -115,8 +115,18 @@ prompt_secret() {
 create_env_file() {
   local env_path="$1"
   if [[ -f "$env_path" && "$OVERWRITE_ENV" -ne 1 ]]; then
-    warn "Keeping existing $env_path"
-    return 0
+    if [[ "$NON_INTERACTIVE" -eq 0 ]]; then
+      printf '%s [Y/n]: ' "Existing .env found at $env_path. Use it?" >&2
+      IFS= read -r choice </dev/tty
+      choice="${choice:-Y}"
+      case "$choice" in
+        y|Y|yes|YES) warn "Keeping existing $env_path"; return 0 ;;
+        *) : ;;
+      esac
+    else
+      warn "Keeping existing $env_path"
+      return 0
+    fi
   fi
 
   cat > "$env_path" <<EOF
