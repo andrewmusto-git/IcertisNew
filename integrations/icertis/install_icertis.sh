@@ -167,14 +167,30 @@ EOF
   pass "Created $env_path"
 }
 
+ensure_install_layout() {
+  local scripts_dir="$INSTALL_DIR/scripts"
+  local config_dir="$INSTALL_DIR/config"
+  local lib_dir="$INSTALL_DIR/lib"
+  local logs_dir="$INSTALL_DIR/logs"
+
+  mkdir -p "$INSTALL_DIR" "$scripts_dir" "$config_dir" "$lib_dir" "$logs_dir"
+
+  for required_dir in "$INSTALL_DIR" "$scripts_dir" "$config_dir" "$lib_dir" "$logs_dir"; do
+    if [[ ! -d "$required_dir" ]]; then
+      fail "Required directory missing: $required_dir"
+      exit 1
+    fi
+  done
+}
+
 install_connector() {
   local scripts_dir="$INSTALL_DIR/scripts"
   local config_dir="$INSTALL_DIR/config"
   local lib_dir="$INSTALL_DIR/lib"
-  mkdir -p "$INSTALL_DIR" "$scripts_dir" "$config_dir" "$lib_dir" "$INSTALL_DIR/logs"
+
+  ensure_install_layout
 
   show_milestone 2 7 "Creating the /opt/VEZA folder structure"
-  mkdir -p "$INSTALL_DIR" "$scripts_dir" "$config_dir" "$lib_dir" "$INSTALL_DIR/logs"
 
   show_milestone 3 7 "Creating Python virtual environment"
   python3 -m venv "$scripts_dir/venv"
@@ -198,6 +214,12 @@ install_connector() {
   chmod 600 "$scripts_dir/.env" "$config_dir/.env"
 
   show_milestone 7 7 "Validating final installation state"
+  for required_file in "$scripts_dir/icertis.py" "$scripts_dir/requirements.txt" "$scripts_dir/.env" "$scripts_dir/venv/bin/python3"; do
+    if [[ ! -e "$required_file" ]]; then
+      fail "Required install artifact missing: $required_file"
+      exit 1
+    fi
+  done
   pass "Installed connector under $INSTALL_DIR"
 }
 
