@@ -169,24 +169,33 @@ EOF
 
 install_connector() {
   local scripts_dir="$INSTALL_DIR/scripts"
-  mkdir -p "$INSTALL_DIR" "$scripts_dir" "$INSTALL_DIR/logs"
+  local config_dir="$INSTALL_DIR/config"
+  local lib_dir="$INSTALL_DIR/lib"
+  mkdir -p "$INSTALL_DIR" "$scripts_dir" "$config_dir" "$lib_dir" "$INSTALL_DIR/logs"
 
   show_milestone 2 7 "Creating the /opt/VEZA folder structure"
-  mkdir -p "$INSTALL_DIR" "$scripts_dir" "$INSTALL_DIR/logs"
+  mkdir -p "$INSTALL_DIR" "$scripts_dir" "$config_dir" "$lib_dir" "$INSTALL_DIR/logs"
 
   show_milestone 3 7 "Creating Python virtual environment"
   python3 -m venv "$scripts_dir/venv"
 
-  show_milestone 4 7 "Installing connector dependencies"
-  "$scripts_dir/venv/bin/pip" install --upgrade pip >/dev/null 2>&1
-  "$scripts_dir/venv/bin/pip" install -r "$SCRIPT_DIR/requirements.txt" >/dev/null 2>&1
-
-  show_milestone 5 7 "Copying integration files into the install directory"
+  show_milestone 4 7 "Copying integration files into the install directory"
   cp "$SCRIPT_DIR/icertis.py" "$scripts_dir/icertis.py"
+  cp "$SCRIPT_DIR/requirements.txt" "$scripts_dir/requirements.txt"
   cp "$SCRIPT_DIR/.env.example" "$scripts_dir/.env.example"
+  cp "$SCRIPT_DIR/preflight_icertis.sh" "$INSTALL_DIR/preflight_icertis.sh"
+  cp "$SCRIPT_DIR/install_icertis.sh" "$INSTALL_DIR/install_icertis.sh"
+  chmod +x "$INSTALL_DIR/preflight_icertis.sh" "$INSTALL_DIR/install_icertis.sh"
+  printf '%s\n' "Icertis connector support files" > "$lib_dir/README.txt"
+
+  show_milestone 5 7 "Installing connector dependencies"
+  "$scripts_dir/venv/bin/pip" install --upgrade pip >/dev/null 2>&1
+  "$scripts_dir/venv/bin/pip" install -r "$scripts_dir/requirements.txt" >/dev/null 2>&1
 
   show_milestone 6 7 "Writing environment configuration"
-  create_env_file "$scripts_dir/.env"
+  create_env_file "$config_dir/.env"
+  cp "$config_dir/.env" "$scripts_dir/.env"
+  chmod 600 "$scripts_dir/.env" "$config_dir/.env"
 
   show_milestone 7 7 "Validating final installation state"
   pass "Installed connector under $INSTALL_DIR"
@@ -202,10 +211,41 @@ main() {
       fail "git clone failed"
       exit 1
     }
-    mkdir -p "$INSTALL_DIR/scripts"
+    mkdir -p "$INSTALL_DIR/scripts" "$INSTALL_DIR/config" "$INSTALL_DIR/lib"
     cp -f "$tmp_dir/integrations/icertis"/*.py "$INSTALL_DIR/scripts/" 2>/dev/null || true
     cp -f "$tmp_dir/integrations/icertis/requirements.txt" "$INSTALL_DIR/scripts/requirements.txt" 2>/dev/null || true
+    cp -f "$tmp_dir/integrations/icertis/.env.example" "$INSTALL_DIR/scripts/.env.example" 2>/dev/null || true
+    cp -f "$tmp_dir/integrations/icertis/preflight_icertis.sh" "$INSTALL_DIR/preflight_icertis.sh" 2>/dev/null || true
+    cp -f "$tmp_dir/integrations/icertis/install_icertis.sh" "$INSTALL_DIR/install_icertis.sh" 2>/dev/null || true
+    chmod +x "$INSTALL_DIR/preflight_icertis.sh" "$INSTALL_DIR/install_icertis.sh"
+    printf '%s\n' "Icertis connector support files" > "$INSTALL_DIR/lib/README.txt"
     rm -rf "$tmp_dir"
+  fi
+
+  if [[ -f "$INSTALL_DIR/config/.env" && "$OVERWRITE_ENV" -ne 1 ]]; then
+    if check_existing_env "$INSTALL_DIR/config/.env"; then
+      info "Using the existing .env file at $INSTALL_DIR/config/.env"
+      if [[ ! -f "$INSTALL_DIR/scripts/.env" ]]; then
+        cp "$INSTALL_DIR/config/.env" "$INSTALL_DIR/scripts/.env"
+      fi
+      install_connector
+      cat <<EOF
+
+Installation complete.
+
+Install path: $INSTALL_DIR
+Config: $INSTALL_DIR/config
+Scripts: $INSTALL_DIR/scripts
+Logs: $INSTALL_DIR/logs
+Lib: $INSTALL_DIR/lib
+
+Next step:
+  cd $INSTALL_DIR/scripts
+  source venv/bin/activate
+  python3 icertis.py --env-file .env --dry-run --save-json --log-level DEBUG
+EOF
+      exit 0
+    fi
   fi
 
   if [[ -f "$INSTALL_DIR/scripts/.env" && "$OVERWRITE_ENV" -ne 1 ]]; then
@@ -217,8 +257,10 @@ main() {
 Installation complete.
 
 Install path: $INSTALL_DIR
+Config: $INSTALL_DIR/config
 Scripts: $INSTALL_DIR/scripts
 Logs: $INSTALL_DIR/logs
+Lib: $INSTALL_DIR/lib
 
 Next step:
   cd $INSTALL_DIR/scripts
@@ -265,8 +307,10 @@ EOF
 Installation complete.
 
 Install path: $INSTALL_DIR
+Config: $INSTALL_DIR/config
 Scripts: $INSTALL_DIR/scripts
 Logs: $INSTALL_DIR/logs
+Lib: $INSTALL_DIR/lib
 
 Next step:
   cd $INSTALL_DIR/scripts
