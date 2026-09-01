@@ -112,19 +112,30 @@ prompt_secret() {
   fi
 }
 
+check_existing_env() {
+  local env_path="$1"
+  if [[ ! -f "$env_path" || "$OVERWRITE_ENV" -eq 1 ]]; then
+    return 1
+  fi
+
+  if [[ "$NON_INTERACTIVE" -eq 0 ]]; then
+    printf '%s [Y/n]: ' "Existing .env found at $env_path. Use it?" >&2
+    IFS= read -r choice </dev/tty
+    choice="${choice:-Y}"
+    case "$choice" in
+      y|Y|yes|YES) warn "Keeping existing $env_path"; return 0 ;;
+      *) return 1 ;;
+    esac
+  else
+    warn "Keeping existing $env_path"
+    return 0
+  fi
+}
+
 create_env_file() {
   local env_path="$1"
   if [[ -f "$env_path" && "$OVERWRITE_ENV" -ne 1 ]]; then
-    if [[ "$NON_INTERACTIVE" -eq 0 ]]; then
-      printf '%s [Y/n]: ' "Existing .env found at $env_path. Use it?" >&2
-      IFS= read -r choice </dev/tty
-      choice="${choice:-Y}"
-      case "$choice" in
-        y|Y|yes|YES) warn "Keeping existing $env_path"; return 0 ;;
-        *) : ;;
-      esac
-    else
-      warn "Keeping existing $env_path"
+    if check_existing_env "$env_path"; then
       return 0
     fi
   fi
@@ -195,6 +206,27 @@ main() {
     cp -f "$tmp_dir/integrations/icertis"/*.py "$INSTALL_DIR/scripts/" 2>/dev/null || true
     cp -f "$tmp_dir/integrations/icertis/requirements.txt" "$INSTALL_DIR/scripts/requirements.txt" 2>/dev/null || true
     rm -rf "$tmp_dir"
+  fi
+
+  if [[ -f "$INSTALL_DIR/scripts/.env" && "$OVERWRITE_ENV" -ne 1 ]]; then
+    if check_existing_env "$INSTALL_DIR/scripts/.env"; then
+      info "Using the existing .env file at $INSTALL_DIR/scripts/.env"
+      install_connector
+      cat <<EOF
+
+Installation complete.
+
+Install path: $INSTALL_DIR
+Scripts: $INSTALL_DIR/scripts
+Logs: $INSTALL_DIR/logs
+
+Next step:
+  cd $INSTALL_DIR/scripts
+  source venv/bin/activate
+  python3 icertis.py --env-file .env --dry-run --save-json --log-level DEBUG
+EOF
+      exit 0
+    fi
   fi
 
   if [[ "$NON_INTERACTIVE" -eq 0 ]]; then
