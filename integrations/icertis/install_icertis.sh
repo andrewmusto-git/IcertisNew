@@ -177,7 +177,7 @@ EOF
 ensure_install_layout() {
   local scripts_dir="$INSTALL_DIR/scripts"
   local config_dir="$INSTALL_DIR/config"
-  local lib_dir="$INSTALL_DIR/lib"
+  local lib_dir="$INSTALL_DIR/scripts/lib"
   local logs_dir="$INSTALL_DIR/logs"
 
   mkdir -p "$INSTALL_DIR" "$scripts_dir" "$config_dir" "$lib_dir" "$logs_dir"
@@ -208,8 +208,8 @@ copy_integration_files() {
     cp -f "${self_dir}/${SCRIPT_NAME}.py"        "${scripts_dir}/"
     cp -f "${self_dir}/requirements.txt"         "${scripts_dir}/"
     cp -f "${self_dir}/.env.example"             "${scripts_dir}/" 2>/dev/null || true
-    cp -f "${self_dir}/preflight_icertis.sh"     "${INSTALL_DIR}/" 2>/dev/null || true
-    cp -f "${self_dir}/install_icertis.sh"       "${INSTALL_DIR}/" 2>/dev/null || true
+    cp -f "${self_dir}/preflight_icertis.sh"     "${scripts_dir}/" 2>/dev/null || true
+    cp -f "${self_dir}/install_icertis.sh"       "${scripts_dir}/" 2>/dev/null || true
     return 0
   fi
 
@@ -218,8 +218,8 @@ copy_integration_files() {
     cp -f "${repo_root}/${INTEGRATION_SUBDIR}/${SCRIPT_NAME}.py"        "${scripts_dir}/"
     cp -f "${repo_root}/${INTEGRATION_SUBDIR}/requirements.txt"         "${scripts_dir}/"
     cp -f "${repo_root}/${INTEGRATION_SUBDIR}/.env.example"             "${scripts_dir}/" 2>/dev/null || true
-    cp -f "${repo_root}/${INTEGRATION_SUBDIR}/preflight_icertis.sh"     "${INSTALL_DIR}/" 2>/dev/null || true
-    cp -f "${repo_root}/${INTEGRATION_SUBDIR}/install_icertis.sh"       "${INSTALL_DIR}/" 2>/dev/null || true
+    cp -f "${repo_root}/${INTEGRATION_SUBDIR}/preflight_icertis.sh"     "${scripts_dir}/" 2>/dev/null || true
+    cp -f "${repo_root}/${INTEGRATION_SUBDIR}/install_icertis.sh"       "${scripts_dir}/" 2>/dev/null || true
     return 0
   fi
 
@@ -232,15 +232,15 @@ copy_integration_files() {
   cp -f "${tmp_dir}/${INTEGRATION_SUBDIR}/${SCRIPT_NAME}.py"        "${scripts_dir}/"     || { rm -rf "${tmp_dir}"; fail "Missing ${SCRIPT_NAME}.py in repo"; }
   cp -f "${tmp_dir}/${INTEGRATION_SUBDIR}/requirements.txt"         "${scripts_dir}/"     || { rm -rf "${tmp_dir}"; fail "Missing requirements.txt in repo"; }
   cp -f "${tmp_dir}/${INTEGRATION_SUBDIR}/.env.example"             "${scripts_dir}/"     2>/dev/null || true
-  cp -f "${tmp_dir}/${INTEGRATION_SUBDIR}/preflight_icertis.sh"     "${INSTALL_DIR}/"    2>/dev/null || true
-  cp -f "${tmp_dir}/${INTEGRATION_SUBDIR}/install_icertis.sh"       "${INSTALL_DIR}/"    2>/dev/null || true
+  cp -f "${tmp_dir}/${INTEGRATION_SUBDIR}/preflight_icertis.sh"     "${scripts_dir}/"     2>/dev/null || true
+  cp -f "${tmp_dir}/${INTEGRATION_SUBDIR}/install_icertis.sh"       "${scripts_dir}/"     2>/dev/null || true
   rm -rf "${tmp_dir}"
 }
 
 install_connector() {
   local scripts_dir="$INSTALL_DIR/scripts"
   local config_dir="$INSTALL_DIR/config"
-  local lib_dir="$INSTALL_DIR/lib"
+  local lib_dir="$scripts_dir/lib"
 
   ensure_install_layout
 
@@ -249,8 +249,8 @@ install_connector() {
 
   show_milestone 3 7 "Copying integration files into the install directory"
   copy_integration_files "${scripts_dir}"
-  chmod +x "${INSTALL_DIR}/preflight_icertis.sh" 2>/dev/null || true
-  chmod +x "${INSTALL_DIR}/install_icertis.sh"   2>/dev/null || true
+  chmod +x "${scripts_dir}/preflight_icertis.sh" 2>/dev/null || true
+  chmod +x "${scripts_dir}/install_icertis.sh"   2>/dev/null || true
   printf '%s\n' "Icertis connector support files" > "${lib_dir}/README.txt"
   pass "Integration files staged to ${scripts_dir}"
 
@@ -296,7 +296,7 @@ Install path: $INSTALL_DIR
 Config: $INSTALL_DIR/config
 Scripts: $INSTALL_DIR/scripts
 Logs: $INSTALL_DIR/logs
-Lib: $INSTALL_DIR/lib
+Lib: $INSTALL_DIR/scripts/lib
 
 Next step:
   cd $INSTALL_DIR/scripts
@@ -319,7 +319,7 @@ Install path: $INSTALL_DIR
 Config: $INSTALL_DIR/config
 Scripts: $INSTALL_DIR/scripts
 Logs: $INSTALL_DIR/logs
-Lib: $INSTALL_DIR/lib
+Lib: $INSTALL_DIR/scripts/lib
 
 Next step:
   cd $INSTALL_DIR/scripts
@@ -369,7 +369,7 @@ Install path: $INSTALL_DIR
 Config: $INSTALL_DIR/config
 Scripts: $INSTALL_DIR/scripts
 Logs: $INSTALL_DIR/logs
-Lib: $INSTALL_DIR/lib
+Lib: $INSTALL_DIR/scripts/lib
 
 Next step:
   cd $INSTALL_DIR/scripts
